@@ -7,6 +7,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import re
+import html
 from datetime import datetime
 import time
 
@@ -86,6 +87,36 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ===== HTML 정리 함수 =====
+def clean_html_text(text):
+    """HTML 태그와 엔티티를 깨끗한 텍스트로 변환"""
+    if not text:
+        return text
+
+    # HTML 엔티티 디코딩 (&nbsp; &amp; &quot; 등)
+    text = html.unescape(text)
+
+    # <br>, <br/>, <br /> 태그를 줄바꿈으로 변환
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+
+    # <p> 태그를 줄바꿈으로 변환
+    text = re.sub(r'</?p\s*/?>', '\n', text, flags=re.IGNORECASE)
+
+    # 모든 HTML 태그 제거
+    text = re.sub(r'<[^>]+>', '', text)
+
+    # 연속된 공백을 하나로
+    text = re.sub(r' +', ' ', text)
+
+    # 연속된 줄바꿈을 최대 2개로
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # 앞뒤 공백 제거
+    text = text.strip()
+
+    return text
 
 
 # ===== iOS App Store 크롤러 =====
@@ -214,8 +245,12 @@ def fetch_android_reviews(package_id, target_count=100, progress_callback=None):
                 break
 
             for r in result:
+                # HTML 태그/엔티티 정리 적용
+                raw_content = r.get('content', '')
+                cleaned_content = clean_html_text(raw_content)
+
                 review = {
-                    'content': r.get('content', ''),
+                    'content': cleaned_content,
                     'author': r.get('userName', '익명'),
                     'rating': r.get('score', 0),
                     'date': r.get('at', '').strftime('%Y-%m-%d') if r.get('at') else ''
